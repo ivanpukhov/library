@@ -1,4 +1,4 @@
-const { Book } = require('../models');
+const { Book, User} = require('../models');
 const Review = require('../models/Review');
 const {Op} = require("sequelize");
 
@@ -13,6 +13,8 @@ exports.createBook = async (req, res) => {
     }
 };
 
+
+
 exports.getBooks = async (req, res) => {
     const books = await Book.findAll();
     res.json(books);
@@ -22,13 +24,13 @@ exports.getBookByIdWithReviews = async (req, res) => {
     const { bookId } = req.params;
 
     try {
-        
+
         const book = await Book.findByPk(bookId, {
             include: [
                 {
                     model: Review,
                     include: {
-                        model: User,  
+                        model: User,
                         attributes: ['firstName', 'lastName']
                     }
                 }
@@ -41,6 +43,7 @@ exports.getBookByIdWithReviews = async (req, res) => {
 
         res.status(200).json(book);
     } catch (error) {
+        console.log(error)
         res.status(500).json({ message: 'Ошибка при получении книги и отзывов.', error });
     }
 };
@@ -56,7 +59,7 @@ exports.getBooksByKeywords = async (req, res) => {
     const { keyword } = req.params;
     const books = await Book.findAll({
         where: {
-            keywords: { [Op.contains]: [keyword] }  
+            keywords: { [Op.contains]: [keyword] }
         }
     });
     res.json(books);

@@ -155,9 +155,7 @@ exports.createClubEvent = async (req, res) => {
     console.log(clubId)
     const club = await Club.findByPk(clubId);
 
-    if (!club || club.adminId !== userId) {
-        return res.status(403).json({ message: 'Вы не являетесь администратором этого клуба.' });
-    }
+
 
     const event = await ClubEvent.create({
         name,
@@ -167,6 +165,10 @@ exports.createClubEvent = async (req, res) => {
         price: type === 'closed' ? price : null,
         ClubId: club.id,
     });
+
+    if (event){
+        console.log()
+    }
 
     res.status(201).json({ message: 'Мероприятие для клуба успешно создано.', event });
 };
@@ -213,12 +215,38 @@ exports.registerForClubEvent = async (req, res) => {
 
 
 exports.getTopClubs = async (req, res) => {
-    const clubs = await Club.findAll({
-        order: [['balance', 'DESC']],
-        limit: 10,
-    });
+    try {
+        const clubs = await Club.findAll({
+            include: {
+                model: UserClub,
+                include: {
+                    model: User,
+                    attributes: ['balance']
+                }
+            }
+        });
 
-    res.json(clubs);
+        const clubWithTotalBalances = clubs.map(club => {
+            const totalBalance = club.UserClubs.reduce((sum, userClub) => {
+                return sum + userClub.User.balance;
+            }, 0);
+
+            return {
+                id: club.id,
+                name: club.name,
+                description: club.description,
+                totalBalance
+            };
+        });
+
+        // Сортировка по общему балансу участников клуба
+        const sortedClubs = clubWithTotalBalances.sort((a, b) => b.totalBalance - a.totalBalance).slice(0, 10);
+
+        res.status(200).json(sortedClubs);
+    } catch (error) {
+        console.error('Ошибка при получении топ клубов:', error);
+        res.status(500).json({ message: 'Произошла ошибка при получении топ клубов.' });
+    }
 };
 
 exports.getClubProfile = async (req, res) => {
@@ -400,3 +428,4 @@ exports.getMyClubs = async (req, res) => {
         res.status(500).json({ message: 'Произошла ошибка при получении клубов.' });
     }
 };
+

@@ -14,9 +14,9 @@ function isValidJSON(str) {
 }
 
 exports.getQuestions = async (req, res) => {
-    const { bookId } = req.body;
+    const { bookId } = req.params;
 
-
+    console.log(bookId)
     const book = await Book.findByPk(bookId);
 
     if (!book) {
@@ -50,6 +50,7 @@ exports.getQuestions = async (req, res) => {
 exports.evaluateAnswers = async (req, res) => {
     const { bookName, userAnswers } = req.body;
     const userId = req.user.id;
+
 
     if (!bookName || !userAnswers) {
         return res.status(400).json({ error: "Пожалуйста, предоставьте название книги и ответы пользователя." });

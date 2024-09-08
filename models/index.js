@@ -9,6 +9,7 @@ const Duel = require('./Duel');
 const UserBook = require('./UserBook');
 const UserEvent = require('./UserEvent');
 const UserClubEvents = require('./UserClubEvents');
+const Review = require('./Review');
 const UserClub = require('./UserClub');
 
 
@@ -49,7 +50,14 @@ User.hasMany(Duel, { as: 'challengedDuels', foreignKey: 'challengerId' });
 User.hasMany(Duel, { as: 'opponentDuels', foreignKey: 'opponentId' });
 Duel.belongsTo(User, { as: 'challenger', foreignKey: 'challengerId' });
 Duel.belongsTo(User, { as: 'opponent', foreignKey: 'opponentId' });
-Duel.belongsTo(Book, { foreignKey: 'bookId' }); 
-Book.hasMany(Duel, { foreignKey: 'bookId' });   
+Duel.belongsTo(Book, { foreignKey: 'bookId' });
+Book.hasMany(Duel, { foreignKey: 'bookId' });
+UserClub.belongsTo(User);
+UserClub.belongsTo(Club)
 
-module.exports = { User, Book, Club, UserClub, Duel, ClubMessage, UserClubEvents, ClubEvent, ClubNews, UserBook, Event, UserEvent };
+Club.hasMany(UserClub, { foreignKey: 'ClubId' });
+UserClub.belongsTo(Club, { foreignKey: 'ClubId' });
+UserClub.belongsTo(User, { foreignKey: 'UserId' });
+User.hasMany(UserClub, { foreignKey: 'UserId' });
+
+module.exports = { User, Book, Club, Review, UserClub, Duel, ClubMessage, UserClubEvents, ClubEvent, ClubNews, UserBook, Event, UserEvent };

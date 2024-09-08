@@ -18,13 +18,15 @@ exports.addReview = async (req, res) => {
             bookId
         });
 
-        
+
         const user = await User.findByPk(userId);
         user.balance += 50;
         await user.save();
 
         res.status(201).json({ message: 'Отзыв успешно добавлен и начислено 50 баллов.', review });
     } catch (error) {
+        console.log(error)
+
         res.status(500).json({ message: 'Произошла ошибка при добавлении отзыва.', error });
     }
 };
@@ -49,6 +51,7 @@ exports.getReviewsByBook = async (req, res) => {
 
         res.status(200).json(reviews);
     } catch (error) {
+        console.log(error)
         res.status(500).json({ message: 'Ошибка при получении отзывов.', error });
     }
 };

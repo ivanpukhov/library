@@ -1,4 +1,4 @@
-const { Duel, User, Book, UserClub} = require('../models');
+const { Duel, User, Book, UserClub, Club} = require('../models');
 const { generateQuestions, evaluateAnswers } = require('../services/openaiService');
 const {sendPushNotification} = require("../services/notificationService");
 
@@ -9,9 +9,14 @@ exports.createDuel = async (req, res) => {
         const challengerId = req.user.id;
 
 
-        const userInClub = await UserClub.findOne({
-            where: { UserId: challengerId, ClubId: clubId }
+        const userInClub = await User.findOne({
+            where: { id: challengerId },
+            include: {
+                model: Club,
+                where: { id: clubId }
+            }
         });
+
 
         if (!userInClub) {
             return res.status(403).json({ message: 'Вы не состоите в этом клубе.' });
@@ -113,10 +118,10 @@ exports.submitChallengerAnswers = async (req, res) => {
     duel.challengerScore = evaluation.progress;
     await duel.save();
     const opponent = await User.findByPk(duel.opponentId);
-    sendPushNotification(opponent.pushToken, {
-        title: 'Ответы от оппонента',
-        body: 'Ваш оппонент отправил свои ответы в дуэли.',
-    });
+    // sendPushNotification(opponent.pushToken, {
+    //     title: 'Ответы от оппонента',
+    //     body: 'Ваш оппонент отправил свои ответы в дуэли.',
+    // });
 
     if (duel.opponentScore > 0) {
         await determineWinner(duel);

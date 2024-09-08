@@ -32,7 +32,7 @@ app.use('/api', duelRoutes);
 
 
 sequelize.sync({force: false}).then(() => {
-    app.listen(3000, '0.0.0.0', () => {
+    app.listen(3001, '0.0.0.0', () => {
         console.log('Сервер запущен на порту 3000');
     });
 });
