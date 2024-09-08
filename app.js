@@ -6,10 +6,11 @@ const authRoutes = require('./routes/authRoutes');
 const auRoutes = require('./routes/auRoutes');
 const bookRoutes = require('./routes/bookRoutes');
 const libraryRoutes = require('./routes/libraryRoutes');
-const eventRoutes = require('./routes/eventRoutes');  
-const clubRoutes = require('./routes/clubRoutes');    
-const duelRoutes = require('./routes/duelRoutes');    
+const eventRoutes = require('./routes/eventRoutes');
+const clubRoutes = require('./routes/clubRoutes');
+const duelRoutes = require('./routes/duelRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
+const { checkDueDates } = require('./services/reminderService');
 
 require('dotenv').config();
 
@@ -17,14 +18,15 @@ require('dotenv').config();
 const app = express();
 app.use(bodyParser.json());
 app.use(cors());
+setInterval(checkDueDates, 24 * 60 * 60 * 1000); // проверка каждый день
 
 
 app.use('/api/auth', authRoutes);
 app.use('/api', bookRoutes);
 app.use('/api', libraryRoutes);
 app.use('/api', auRoutes);
-app.use('/api', eventRoutes);  
-app.use('/api', clubRoutes);   
+app.use('/api', eventRoutes);
+app.use('/api', clubRoutes);
 app.use('/api', reviewRoutes);
 app.use('/api', duelRoutes);
 

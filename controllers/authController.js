@@ -2,9 +2,12 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { User, Book, Club, UserClub, ClubMessage, UserClubEvents, ClubEvent, ClubNews, UserBook, Event, UserEvent, Duel} = require('../models');
 const {Op} = require("sequelize");
+const {sendPushNotification} = require("../services/notificationService");
+
+
 
 exports.register = async (req, res) => {
-    const { firstName, lastName, phoneNumber, email, password, role } = req.body;
+    const { firstName, lastName, phoneNumber, email, password, role, pushToken } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
 
     try {
@@ -15,9 +18,16 @@ exports.register = async (req, res) => {
             email,
             password: hashedPassword,
             role,
+            pushToken
         });
 
         const token = jwt.sign({ id: newUser.id, role: newUser.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+        // Уведомление об успешной регистрации
+        sendPushNotification(pushToken, {
+            title: 'Добро пожаловать!',
+            body: 'Регистрация прошла успешно. Добро пожаловать в библиотеку!',
+        });
 
         res.status(201).json({
             message: 'Пользователь успешно зарегистрирован и авторизован',
@@ -29,16 +39,33 @@ exports.register = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, pushToken } = req.body;
 
-    const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(400).send('Неверный email или пароль.');
+    try {
+        const user = await User.findOne({ where: { email } });
+        if (!user) return res.status(400).send('Неверный email или пароль.');
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).send('Неверный email или пароль.');
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.status(400).send('Неверный email или пароль.');
 
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET);
-    res.json({ token });
+        // Обновляем pushToken при авторизации
+        if (pushToken) {
+            user.pushToken = pushToken;
+            await user.save();
+        }
+
+        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET);
+
+        // Уведомление о успешной авторизации
+        sendPushNotification(pushToken, {
+            title: 'Вы успешно авторизованы!',
+            body: 'Добро пожаловать обратно!',
+        });
+
+        res.json({ token });
+    } catch (err) {
+        res.status(500).json({ message: 'Ошибка авторизации', error: err });
+    }
 };
 
 
@@ -49,12 +76,12 @@ exports.getProfile = async (req, res) => {
             attributes: ['id', 'firstName', 'lastName', 'phoneNumber', 'email', 'role', 'balance'],
             include: [
                 {
-                    model: Book,  
+                    model: Book,
                     through: { attributes: ['dueDate', 'renewals', 'returnDate'] },
                     attributes: ['id', 'title', 'author']
                 },
                 {
-                    model: Club,  
+                    model: Club,
                     attributes: ['id', 'name', 'description'],
                     include: [
                         {
@@ -74,11 +101,11 @@ exports.getProfile = async (req, res) => {
                             attributes: ['id', 'name', 'topic', 'date', 'type', 'price'],
                             include: [
                                 {
-                                    model: User,  
+                                    model: User,
                                     attributes: ['id', 'firstName', 'lastName'],
                                     through: {
                                         model: UserClubEvents,
-                                        attributes: ['createdAt']  
+                                        attributes: ['createdAt']
                                     }
                                 }
                             ]
@@ -86,7 +113,7 @@ exports.getProfile = async (req, res) => {
                     ]
                 },
                 {
-                    model: Duel,  
+                    model: Duel,
                     as: 'challengedDuels',
                     attributes: ['id', 'status', 'stake', 'challengerScore', 'opponentScore', 'winnerId'],
                     include: [
@@ -102,7 +129,7 @@ exports.getProfile = async (req, res) => {
                     ]
                 },
                 {
-                    model: Duel,  
+                    model: Duel,
                     as: 'opponentDuels',
                     attributes: ['id', 'status', 'stake', 'challengerScore', 'opponentScore', 'winnerId'],
                     include: [
@@ -118,15 +145,15 @@ exports.getProfile = async (req, res) => {
                     ]
                 },
                 {
-                    model: Event,  
+                    model: Event,
                     attributes: ['id', 'name', 'topic', 'date', 'type', 'price'],
                     include: [
                         {
-                            model: User,  
+                            model: User,
                             attributes: ['id', 'firstName', 'lastName'],
                             through: {
                                 model: UserEvent,
-                                attributes: ['createdAt']  
+                                attributes: ['createdAt']
                             }
                         }
                     ]
@@ -138,7 +165,7 @@ exports.getProfile = async (req, res) => {
             return res.status(404).json({ message: 'Пользователь не найден.' });
         }
 
-        
+
         const pendingDuels = await Duel.findAll({
             where: {
                 clubId: {
@@ -159,7 +186,7 @@ exports.getProfile = async (req, res) => {
             ]
         });
 
-        
+
         const profile = {
             id: user.id,
             firstName: user.firstName,
@@ -253,7 +280,7 @@ exports.getProfile = async (req, res) => {
             }))
         };
 
-        
+
         res.status(200).json(profile);
     } catch (error) {
         console.error('Ошибка при получении профиля пользователя:', error);

@@ -1,6 +1,7 @@
 
 const { User, Book, UserBook } = require('../models');
 const { Op } = require('sequelize');
+const {sendPushNotification} = require("../services/notificationService");
 
 exports.issueBook = async (req, res) => {
     const { userId, bookId, dueDate } = req.body;
@@ -10,7 +11,7 @@ exports.issueBook = async (req, res) => {
 
     if (!user || !book) return res.status(404).send('Пользователь или книга не найдены.');
 
-    
+
     await user.addBook(book, { through: { dueDate, issueDate: new Date() } });
 
     res.status(201).send('Книга выдана пользователю.');
@@ -37,7 +38,7 @@ exports.returnBook = async (req, res) => {
             return res.status(404).json({ message: 'Книга не найдена для данного пользователя.' });
         }
 
-        
+
         userBook.returnDate = new Date();
         await userBook.save();
 
@@ -133,41 +134,36 @@ exports.getUserBooks = async (req, res) => {
 };
 
 exports.requestRenewal = async (req, res) => {
-    const {bookId, days} = req.body;  
+    const { bookId, days } = req.body;
     const userId = req.user.id;
 
     try {
-        const userBook = await UserBook.findOne({where: {userId, bookId}});
+        const userBook = await UserBook.findOne({ where: { userId, bookId } });
 
         if (!userBook) {
-            return res.status(404).json({message: 'Книга не найдена для данного пользователя.'});
+            return res.status(404).json({ message: 'Книга не найдена для данного пользователя.' });
         }
 
-        
-        if (userBook.renewalBlockedUntil && new Date() < new Date(userBook.renewalBlockedUntil)) {
-            return res.status(403).json({message: 'Продление книги временно заблокировано.'});
-        }
-
-        
         if (userBook.renewals >= 2) {
-            return res.status(403).json({message: 'Превышено количество допустимых продлений (максимум 2).'});
+            return res.status(403).json({ message: 'Превышено количество допустимых продлений.' });
         }
 
-        
-        const extensionDays = days && days <= 10 ? days : 10;
-
-        
         const newDueDate = new Date(userBook.dueDate);
-        newDueDate.setDate(newDueDate.getDate() + extensionDays);
-
-        
+        newDueDate.setDate(newDueDate.getDate() + days);
         userBook.dueDate = newDueDate;
         userBook.renewals += 1;
         await userBook.save();
 
-        res.status(200).json({message: `Книга успешно продлена на ${extensionDays} дней. Новый срок возврата: ${newDueDate.toDateString()}`});
+        // Отправляем уведомление о продлении
+        const user = await User.findByPk(userId);
+        sendPushNotification(user.pushToken, {
+            title: 'Книга продлена',
+            body: `Книга успешно продлена на ${days} дней. Новый срок возврата: ${newDueDate.toDateString()}`,
+        });
+
+        res.status(200).json({ message: `Книга успешно продлена на ${days} дней.` });
     } catch (error) {
-        res.status(500).json({message: 'Ошибка при продлении книги.', error});
+        res.status(500).json({ message: 'Ошибка при продлении книги.', error });
     }
 };
 
@@ -178,7 +174,7 @@ exports.getIssuedBooks = async (req, res) => {
         include: {
             model: Book,
             through: {
-                attributes: ['dueDate', 'issueDate', 'returnDate'],  
+                attributes: ['dueDate', 'issueDate', 'returnDate'],
             },
         },
     });

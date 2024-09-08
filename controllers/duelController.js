@@ -1,5 +1,6 @@
 const { Duel, User, Book, UserClub} = require('../models');
 const { generateQuestions, evaluateAnswers } = require('../services/openaiService');
+const {sendPushNotification} = require("../services/notificationService");
 
 
 exports.createDuel = async (req, res) => {
@@ -7,7 +8,7 @@ exports.createDuel = async (req, res) => {
         const { clubId, bookId, stake } = req.body;
         const challengerId = req.user.id;
 
-        
+
         const userInClub = await UserClub.findOne({
             where: { UserId: challengerId, ClubId: clubId }
         });
@@ -16,23 +17,32 @@ exports.createDuel = async (req, res) => {
             return res.status(403).json({ message: 'Вы не состоите в этом клубе.' });
         }
 
-        
+
         const book = await Book.findByPk(bookId);
         if (!book) {
             return res.status(404).json({ message: 'Книга не найдена.' });
         }
 
-        
+
         const questions = await generateQuestions(book.title);
 
-        
+
         const duel = await Duel.create({
             clubId,
             bookId,
             stake,
             challengerId,
-            status: 'pending',  
-            questions: JSON.stringify(questions)  
+            status: 'pending',
+            questions: JSON.stringify(questions)
+        });
+        const clubMembers = await UserClub.findAll({ where: { ClubId: clubId }, include: User });
+        clubMembers.forEach(({ User }) => {
+            if (User.id !== challengerId) {
+                sendPushNotification(User.pushToken, {
+                    title: 'Вызов на дуэль',
+                    body: `Новая дуэль с книгой "${book.title}". Примите вызов!`,
+                });
+            }
         });
 
         res.status(201).json({
@@ -52,7 +62,7 @@ exports.acceptDuel = async (req, res) => {
         const { duelId } = req.params;
         const opponentId = req.user.id;
 
-        
+
         const duel = await Duel.findOne({
             where: { id: duelId, status: 'pending' }
         });
@@ -61,7 +71,7 @@ exports.acceptDuel = async (req, res) => {
             return res.status(404).json({ message: 'Дуэль не найдена или уже принята.' });
         }
 
-        
+
         const userInClub = await UserClub.findOne({
             where: { UserId: opponentId, ClubId: duel.clubId }
         });
@@ -70,12 +80,12 @@ exports.acceptDuel = async (req, res) => {
             return res.status(403).json({ message: 'Вы не состоите в этом клубе.' });
         }
 
-        
+
         duel.opponentId = opponentId;
-        duel.status = 'ongoing';  
+        duel.status = 'ongoing';
         await duel.save();
 
-        
+
         const questions = JSON.parse(duel.questions);
 
         res.status(200).json({ message: 'Дуэль принята.', duel, questions });
@@ -96,14 +106,18 @@ exports.submitChallengerAnswers = async (req, res) => {
         return res.status(403).json({ message: 'Вы не можете отправить ответы для этой дуэли.' });
     }
 
-    
+
     const book = await Book.findByPk(duel.bookId);
     const evaluation = await evaluateAnswers(book.title, userAnswers);
 
     duel.challengerScore = evaluation.progress;
     await duel.save();
+    const opponent = await User.findByPk(duel.opponentId);
+    sendPushNotification(opponent.pushToken, {
+        title: 'Ответы от оппонента',
+        body: 'Ваш оппонент отправил свои ответы в дуэли.',
+    });
 
-    
     if (duel.opponentScore > 0) {
         await determineWinner(duel);
     }
@@ -122,14 +136,14 @@ exports.submitOpponentAnswers = async (req, res) => {
         return res.status(403).json({ message: 'Вы не можете отправить ответы для этой дуэли.' });
     }
 
-    
+
     const book = await Book.findByPk(duel.bookId);
     const evaluation = await evaluateAnswers(book.title, userAnswers);
 
     duel.opponentScore = evaluation.progress;
     await duel.save();
 
-    
+
     if (duel.challengerScore > 0) {
         await determineWinner(duel);
     }
@@ -146,9 +160,9 @@ async function determineWinner(duel) {
     } else if (duel.opponentScore > duel.challengerScore) {
         winnerId = duel.opponentId;
     } else {
-        
+
         duel.status = 'completed';
-        duel.winnerId = null;  
+        duel.winnerId = null;
         await duel.save();
 
         return {
@@ -160,7 +174,7 @@ async function determineWinner(duel) {
 
     if (winnerId) {
         const winner = await User.findByPk(winnerId);
-        winner.balance += duel.stake * 2;  
+        winner.balance += duel.stake * 2;
         await winner.save();
     }
 

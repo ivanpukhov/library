@@ -1,4 +1,5 @@
 const { Club, ClubMessage, ClubEvent, ClubEvents, Duel, Book, ClubNews, User, UserClub, UserClubEvents} = require('../models');
+const {sendPushNotification} = require("../services/notificationService");
 
 
 exports.createClub = async (req, res) => {
@@ -20,7 +21,7 @@ exports.createClub = async (req, res) => {
         adminId: user.id,
     });
 
-    
+
     await UserClub.create({ UserId: user.id, ClubId: club.id });
 
     res.status(201).json({ message: 'Клуб успешно создан.', club });
@@ -42,7 +43,7 @@ exports.joinClub = async (req, res) => {
         return res.status(400).json({ message: 'Недостаточно средств для вступления в клуб.' });
     }
 
-    
+
     const userInClub = await UserClub.findOne({ where: { UserId: userId, ClubId: clubId } });
     if (userInClub) {
         return res.status(400).json({ message: 'Вы уже состоите в этом клубе.' });
@@ -58,7 +59,7 @@ exports.joinClub = async (req, res) => {
 
 exports.sendMessage = async (req, res) => {
     const { content } = req.body;
-    const {clubId} = req.params
+    const { clubId } = req.params;
     const userId = req.user.id;
 
     const userInClub = await UserClub.findOne({ where: { UserId: userId, ClubId: clubId } });
@@ -70,6 +71,15 @@ exports.sendMessage = async (req, res) => {
         content,
         UserId: userId,
         ClubId: clubId,
+    });
+
+    // Отправляем уведомления всем участникам клуба
+    const clubMembers = await UserClub.findAll({ where: { ClubId: clubId }, include: User });
+    clubMembers.forEach(({ User }) => {
+        sendPushNotification(User.pushToken, {
+            title: 'Новое сообщение в клубе',
+            body: 'Новое сообщение в вашем клубе.',
+        });
     });
 
     res.status(201).json({ message: 'Сообщение отправлено.', message });
@@ -100,7 +110,6 @@ exports.addClubNews = async (req, res) => {
     const userId = req.user.id;
 
     const club = await Club.findByPk(clubId);
-
     if (!club || club.adminId !== userId) {
         return res.status(403).json({ message: 'Вы не являетесь администратором этого клуба.' });
     }
@@ -109,6 +118,15 @@ exports.addClubNews = async (req, res) => {
         title,
         content,
         ClubId: club.id,
+    });
+
+    // Уведомляем участников клуба о новой новости
+    const clubMembers = await UserClub.findAll({ where: { ClubId: clubId }, include: User });
+    clubMembers.forEach(({ User }) => {
+        sendPushNotification(User.pushToken, {
+            title: 'Новая новость в клубе',
+            body: `Новая новость: ${title}`,
+        });
     });
 
     res.status(201).json({ message: 'Новость успешно добавлена.', news });
@@ -160,27 +178,27 @@ exports.registerForClubEvent = async (req, res) => {
     const clubId = req.params.clubId;
 
     try {
-        
+
         const event = await ClubEvent.findByPk(eventId, {
             include: {
-                model: User,  
+                model: User,
                 where: { id: userId },
                 required: false
             }
         });
 
-        
+
         if (!event) {
             return res.status(404).json({ message: 'Мероприятие не найдено.' });
         }
 
-        
+
         const isRegistered = event.Users && event.Users.length > 0;
         if (isRegistered) {
             return res.status(400).json({ message: 'Вы уже зарегистрированы на это мероприятие.' });
         }
 
-        
+
         await UserClubEvents.create({
             UserId: userId,
             ClubEventId: eventId
@@ -208,7 +226,7 @@ exports.getClubProfile = async (req, res) => {
         const { clubId } = req.params;
         const userId = req.user.id;
 
-        
+
         const userInClub = await User.findOne({
             where: { id: userId },
             include: {
@@ -221,15 +239,15 @@ exports.getClubProfile = async (req, res) => {
             return res.status(403).json({ message: 'Вы не состоите в этом клубе.' });
         }
 
-        
+
         const club = await Club.findByPk(clubId, {
             include: [
                 {
-                    model: ClubNews,  
+                    model: ClubNews,
                     attributes: ['id', 'title', 'content', 'createdAt']
                 },
                 {
-                    model: ClubMessage,  
+                    model: ClubMessage,
                     attributes: ['id', 'content', 'createdAt'],
                     include: {
                         model: User,
@@ -237,29 +255,29 @@ exports.getClubProfile = async (req, res) => {
                     }
                 },
                 {
-                    model: ClubEvent,  
+                    model: ClubEvent,
                     attributes: ['id', 'name', 'topic', 'date', 'type', 'price'],
                     include: [
                         {
-                            model: User,  
+                            model: User,
                             attributes: ['id', 'firstName', 'lastName']
                         }
                     ]
                 },
                 {
-                    model: Duel,  
-                    attributes: ['id', 'challengerId', 'opponentId', 'stake', 'status', 'winnerId'], 
+                    model: Duel,
+                    attributes: ['id', 'challengerId', 'opponentId', 'stake', 'status', 'winnerId'],
                     include: [
                         {
-                            model: User, as: 'challenger',  
+                            model: User, as: 'challenger',
                             attributes: ['id', 'firstName', 'lastName']
                         },
                         {
-                            model: User, as: 'opponent',  
+                            model: User, as: 'opponent',
                             attributes: ['id', 'firstName', 'lastName']
                         },
                         {
-                            model: Book,  
+                            model: Book,
                             attributes: ['id', 'title']
                         }
                     ]
@@ -271,7 +289,7 @@ exports.getClubProfile = async (req, res) => {
             return res.status(404).json({ message: 'Клуб не найден.' });
         }
 
-        
+
         const clubProfile = {
             id: club.id,
             name: club.name,
@@ -323,11 +341,11 @@ exports.getClubProfile = async (req, res) => {
                     id: duel.Book.id,
                     title: duel.Book.title
                 },
-                winnerId: duel.winnerId 
+                winnerId: duel.winnerId
             }))
         };
 
-        
+
         res.status(200).json(clubProfile);
     } catch (error) {
         console.error('Ошибка при получении профиля клуба:', error);
@@ -337,20 +355,20 @@ exports.getClubProfile = async (req, res) => {
 
 exports.getAllClubEvents = async (req, res) => {
     try {
-        
+
         const events = await ClubEvent.findAll({
             include: {
-                model: Club,  
-                attributes: ['id', 'name']  
+                model: Club,
+                attributes: ['id', 'name']
             },
-            order: [['date', 'ASC']]  
+            order: [['date', 'ASC']]
         });
 
         if (events.length === 0) {
             return res.status(404).json({ message: 'Клубные мероприятия не найдены.' });
         }
 
-        
+
         res.status(200).json(events);
     } catch (error) {
         console.error('Ошибка при получении клубных мероприятий:', error);
@@ -366,7 +384,7 @@ exports.getMyClubs = async (req, res) => {
             include: {
                 model: Club,
                 through: {
-                    attributes: [] 
+                    attributes: []
                 },
                 attributes: ['id', 'name', 'description']
             }
