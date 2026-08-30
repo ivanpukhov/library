@@ -1,4 +1,4 @@
-const { Club, ClubMessage, ClubEvent, ClubEvents, Duel, Book, ClubNews, User, UserClub, UserClubEvents} = require('../models');
+const { Club, ClubMessage, ClubEvent, Duel, Book, ClubNews, User, UserClub, UserClubEvents} = require('../models');
 const {sendPushNotification} = require("../services/notificationService");
 
 
@@ -106,7 +106,8 @@ exports.getMessages = async (req, res) => {
 
 
 exports.addClubNews = async (req, res) => {
-    const { title, content, clubId } = req.body;
+    const { title, content } = req.body;
+    const { clubId } = req.params;
     const userId = req.user.id;
 
     const club = await Club.findByPk(clubId);
@@ -152,10 +153,14 @@ exports.createClubEvent = async (req, res) => {
     const { name, topic, date, type, price } = req.body;
     const userId = req.user.id;
     const clubId = req.params.clubId;
-    console.log(clubId)
     const club = await Club.findByPk(clubId);
 
-
+    if (!club) {
+        return res.status(404).json({ message: 'Клуб не найден.' });
+    }
+    if (club.adminId !== userId) {
+        return res.status(403).json({ message: 'Только администратор клуба может создавать мероприятия.' });
+    }
 
     const event = await ClubEvent.create({
         name,
@@ -165,10 +170,6 @@ exports.createClubEvent = async (req, res) => {
         price: type === 'closed' ? price : null,
         ClubId: club.id,
     });
-
-    if (event){
-        console.log()
-    }
 
     res.status(201).json({ message: 'Мероприятие для клуба успешно создано.', event });
 };
@@ -428,4 +429,3 @@ exports.getMyClubs = async (req, res) => {
         res.status(500).json({ message: 'Произошла ошибка при получении клубов.' });
     }
 };
-

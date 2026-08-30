@@ -1,15 +1,22 @@
 const jwt = require('jsonwebtoken');
+const { User } = require('../models');
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) return res.status(401).send('Доступ запрещен. Токен не предоставлен.');
+    if (!token) {
+        return res.status(401).json({ message: 'Требуется Bearer token.' });
+    }
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        req.user = decoded;
+        const user = await User.findByPk(decoded.id, { attributes: ['id', 'role'] });
+        if (!user) {
+            return res.status(401).json({ message: 'Пользователь токена не найден.' });
+        }
+        req.user = { id: user.id, role: user.role };
         next();
-    } catch (err) {
-        res.status(400).send('Неверный токен.');
+    } catch (error) {
+        return res.status(401).json({ message: 'Токен недействителен или просрочен.' });
     }
 };
 

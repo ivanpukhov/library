@@ -6,22 +6,33 @@ const {sendPushNotification} = require("../services/notificationService");
 
 
 
-exports.register = async (req, res) => {
-    const { firstName, lastName, phoneNumber, email, password, role, pushToken } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+const signToken = (user) => jwt.sign(
+    { id: user.id },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRES_IN || '2h' },
+);
 
+exports.register = async (req, res) => {
+    const { firstName, lastName, phoneNumber, email, password, pushToken } = req.body;
+    if (!firstName || !lastName || !phoneNumber || !email || !password) {
+        return res.status(400).json({ message: 'Заполните все обязательные поля.' });
+    }
+    if (password.length < 8) {
+        return res.status(400).json({ message: 'Пароль должен содержать минимум 8 символов.' });
+    }
     try {
+        const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = await User.create({
             firstName,
             lastName,
             phoneNumber,
-            email,
+            email: email.trim().toLowerCase(),
             password: hashedPassword,
-            role,
+            role: 'reader',
             pushToken
         });
 
-        const token = jwt.sign({ id: newUser.id, role: newUser.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const token = signToken(newUser);
 
         // Уведомление об успешной регистрации
         sendPushNotification(pushToken, {
@@ -29,12 +40,13 @@ exports.register = async (req, res) => {
             body: 'Регистрация прошла успешно. Добро пожаловать в библиотеку!',
         });
 
-        res.status(201).json({
+        return res.status(201).json({
             message: 'Пользователь успешно зарегистрирован и авторизован',
             token,
+            user: { id: newUser.id, role: newUser.role },
         });
     } catch (err) {
-        res.status(400).json({ message: 'Ошибка регистрации', error: err });
+        return res.status(400).json({ message: 'Не удалось зарегистрировать пользователя.' });
     }
 };
 
@@ -42,11 +54,11 @@ exports.login = async (req, res) => {
     const { email, password, pushToken } = req.body;
 
     try {
-        const user = await User.findOne({ where: { email } });
-        if (!user) return res.status(400).send('Неверный email или пароль.');
+        const user = await User.findOne({ where: { email: email?.trim().toLowerCase() } });
+        if (!user) return res.status(401).json({ message: 'Неверный email или пароль.' });
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).send('Неверный email или пароль.');
+        if (!isMatch) return res.status(401).json({ message: 'Неверный email или пароль.' });
 
         // Обновляем pushToken при авторизации
         if (pushToken) {
@@ -54,7 +66,7 @@ exports.login = async (req, res) => {
             await user.save();
         }
 
-        const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET);
+        const token = signToken(user);
 
         // Уведомление о успешной авторизации
         sendPushNotification(pushToken, {
@@ -62,9 +74,9 @@ exports.login = async (req, res) => {
             body: 'Добро пожаловать обратно!',
         });
 
-        res.json({ token });
+        return res.json({ token, user: { id: user.id, role: user.role } });
     } catch (err) {
-        res.status(500).json({ message: 'Ошибка авторизации', error: err });
+        return res.status(500).json({ message: 'Ошибка авторизации.' });
     }
 };
 

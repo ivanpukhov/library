@@ -1,8 +1,12 @@
 const OpenAI = require("openai");
 const { User, UserBook, Book} = require('../models');
-const openai = new OpenAI({
-    apiKey: "",
-});
+
+const getClient = () => {
+    if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is required for quiz endpoints');
+    }
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+};
 
 function isValidJSON(str) {
     try {
@@ -16,7 +20,6 @@ function isValidJSON(str) {
 exports.getQuestions = async (req, res) => {
     const { bookId } = req.params;
 
-    console.log(bookId)
     const book = await Book.findByPk(bookId);
 
     if (!book) {
@@ -28,7 +31,7 @@ exports.getQuestions = async (req, res) => {
     try {
         const prompt = `Предположим, что я читал книгу "${bookName}". Тебе нужно составить 5 вопросов по сюжету этой книги в формате JSON. Вопросы должны быть направлены на проверку того, как хорошо я понял содержание этой книги. Формат JSON должен быть **строго** таким: [{"question": "Вопрос 1"}, {"question": "Вопрос 2"}, {"question": "Вопрос 3"}, {"question": "Вопрос 4"}, {"question": "Вопрос 5"}]. важно, чтобы кроме json ответ не содержал ничего!!`;
 
-        const questionResponse = await openai.chat.completions.create({
+        const questionResponse = await getClient().chat.completions.create({
             model: "gpt-4o-mini",
             messages: [{ role: "user", content: prompt }],
         });
@@ -59,7 +62,7 @@ exports.evaluateAnswers = async (req, res) => {
     try {
         const prompt = `Я прочитал книгу "${bookName}". Вот список вопросов и моих ответов:\n${JSON.stringify(userAnswers)}.\nНа основе этих ответов оцени, на сколько процентов я прочитал книгу. Возвращай ответ строго в формате JSON: {"progress": число от 0 до 100, "explanation": "пояснение оценки"} и кроме json ничего не пиши!!`;
 
-        const evaluationResponse = await openai.chat.completions.create({
+        const evaluationResponse = await getClient().chat.completions.create({
             model: "gpt-4o-mini",
             messages: [{ role: "user", content: prompt }],
         });

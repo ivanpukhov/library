@@ -5,6 +5,6 @@ const authMiddleware = require('../middleware/authMiddleware');
 const router = express.Router();
 
 router.post('/ask', authMiddleware, evaluateAnswers);
-router.get('/que/:bookId', getQuestions);
+router.get('/que/:bookId', authMiddleware, getQuestions);
 
 module.exports = router;

@@ -134,4 +134,4 @@ const checkUpcomingEvents = async () => {
     });
 };
 
-setInterval(checkUpcomingEvents, 24 * 60 * 60 * 1000);
+exports.checkUpcomingEvents = checkUpcomingEvents;

@@ -5,9 +5,11 @@ const { Expo } = require('expo-server-sdk');
 const expo = new Expo();
 
 const sendPushNotification = async (pushToken, message) => {
+    if (process.env.NOTIFICATIONS_ENABLED !== 'true' || !pushToken) {
+        return false;
+    }
     if (!Expo.isExpoPushToken(pushToken)) {
-        console.error(`Push-токен ${pushToken} не является валидным Expo Push токеном`);
-        return;
+        return false;
     }
 
     // Формируем сообщение с приоритетом 'high'
@@ -21,10 +23,11 @@ const sendPushNotification = async (pushToken, message) => {
     }];
 
     try {
-        const ticketChunk = await expo.sendPushNotificationsAsync(messages);
-        console.log('Уведомления отправлены:', ticketChunk);
+        await expo.sendPushNotificationsAsync(messages);
+        return true;
     } catch (error) {
         console.error('Ошибка при отправке уведомления:', error);
+        return false;
     }
 };
 

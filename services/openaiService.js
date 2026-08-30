@@ -1,14 +1,18 @@
 
 const OpenAI = require('openai');
-const openai = new OpenAI({
-    apiKey: "",
-});
+
+const getClient = () => {
+    if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is required for quiz endpoints');
+    }
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+};
 
 
 exports.generateQuestions = async (bookTitle) => {
     const prompt = `Я прочитал книгу "${bookTitle}". Составь 20 вопросов с 4 вариантами ответов. Формат: [{"question": "Вопрос 1", "options": ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"]}, {...}, ...] кроме json ничего не пиши!!`;
 
-    const questionResponse = await openai.chat.completions.create({
+    const questionResponse = await getClient().chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
     });
@@ -21,7 +25,7 @@ exports.generateQuestions = async (bookTitle) => {
 exports.evaluateAnswers = async (bookTitle, userAnswers) => {
     const prompt = `Я прочитал книгу "${bookTitle}". Вот список вопросов и моих ответов:\n${JSON.stringify(userAnswers)}.\nОцени, на сколько процентов я правильно ответил. Верни ответ в формате JSON: {"progress": число от 0 до 100, "explanation": "пояснение"} и кроме json ничего не пиши!!`;
 
-    const evaluationResponse = await openai.chat.completions.create({
+    const evaluationResponse = await getClient().chat.completions.create({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
     });

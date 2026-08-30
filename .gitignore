@@ -4,8 +4,9 @@ node_modules/
 data.ms/
 
 #
-package-lock.json
 database.sqlite
+database.sqlite-journal
+coverage/
 
 #
 npm-debug.log*

@@ -1,12 +1,13 @@
 const express = require('express');
 const { createBook, getBooks, getBooksByAuthor, getBooksByKeywords, getBookByIdWithReviews} = require('../controllers/bookController');
 const authMiddleware = require('../middleware/authMiddleware');
+const requireRole = require('../middleware/requireRole');
 const {Book} = require("../models");
 
 const router = express.Router();
 
-router.post('/books', authMiddleware, createBook);
-router.post('/books/multiple', authMiddleware, async (req, res) => {
+router.post('/books', authMiddleware, requireRole('librarian'), createBook);
+router.post('/books/multiple', authMiddleware, requireRole('librarian'), async (req, res) => {
     const books = req.body.books;
 
     if (!Array.isArray(books) || books.length === 0) {
